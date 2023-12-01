@@ -12,11 +12,14 @@ picam2 = Picamera2()
 sender = imagezmq.ImageSender(connect_to='tcp://192.168.16.96:5555')
 rpi_name = socket.gethostname()  # send RPi hostname with each image
 
+picam2.configure(picam2.create_preview_configuration(main={"size":(720,720),"format":"BGR888"}))
+
 picam2.start()
 time.sleep(2.0)
 
 while True:
     img = picam2.capture_array()
+    print(img.shape)
     # img = cv.imread('sidewalk_olin_1.jpeg')
     hsv_img = cv.cvtColor(img, cv.COLOR_BGR2HSV)
 
