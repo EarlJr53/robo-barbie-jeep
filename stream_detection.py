@@ -42,8 +42,8 @@ while True:
     plt.title('Edge Image'), plt.xticks([]), plt.yticks([])
     plt.show()
 
-    vis = np.concatenate((img, edges), axis=1)
-
+    vis = cv.addWeighted(img, 0.8, edges, 1.0, 0.0)
+    # vis = cv.hconcat([hsv_img,edges])
     # # Find contours in the edges
     # contours, _ = cv.findContours(edges, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
 
