@@ -42,10 +42,12 @@ while True:
     plt.title('Edge Image'), plt.xticks([]), plt.yticks([])
     plt.show()
 
-    vis = np.concatenate((img, edges), axis=1)
-
     # # Find contours in the edges
-    # contours, _ = cv.findContours(edges, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
+    contours, _ = cv.findContours(edges, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
+
+    vis = img.copy()
+
+    cv.drawContours(vis, contours, -1, (0, 255, 0), 2)
 
     # # Find the contour with the largest area
     # largest_contour = max(contours, key=cv.contourArea)
