@@ -42,10 +42,15 @@ while True:
     plt.title('Edge Image'), plt.xticks([]), plt.yticks([])
     plt.show()
 
-    vis = cv.addWeighted(img, 0.8, edges, 1.0, 0.0)
+    # vis = cv.addWeighted(img, 0.8, edges, 1.0, 0.0)
     # vis = cv.hconcat([hsv_img,edges])
+
     # # Find contours in the edges
-    # contours, _ = cv.findContours(edges, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
+    contours, _ = cv.findContours(edges, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
+
+    vis = img.copy()
+
+    cv.drawContours(vis, contours, -1, (0, 255, 0), 2)
 
     # # Find the contour with the largest area
     # largest_contour = max(contours, key=cv.contourArea)
