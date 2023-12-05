@@ -42,6 +42,8 @@ while True:
     plt.title('Edge Image'), plt.xticks([]), plt.yticks([])
     plt.show()
 
+    vis = np.concatenate((img, edges), axis=1)
+
     # # Find contours in the edges
     # contours, _ = cv.findContours(edges, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
 
@@ -59,4 +61,4 @@ while True:
     # cv.waitKey(0)
     # cv.destroyAllWindows()
 
-    sender.send_image(rpi_name, edges)
+    sender.send_image(rpi_name, vis)
