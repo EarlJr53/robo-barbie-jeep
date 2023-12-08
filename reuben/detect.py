@@ -1,59 +1,81 @@
 import cv2
 import numpy as np
-import matplotlib.pyplot as plt
+from scipy.interpolate import UnivariateSpline
 
-# Load the image
-image_path = 'sidewalk.jpeg'
-image = cv2.imread(image_path)
+def update_image(*args):
+    # Retrieve the current positions of the trackbars
+    h_range = cv2.getTrackbarPos('H Range', 'Sidewalk Detection')
+    s_range = cv2.getTrackbarPos('S Range', 'Sidewalk Detection')
+    v_range = cv2.getTrackbarPos('V Range', 'Sidewalk Detection')
 
-# Make sure the image path is correct and the image is loaded properly
-if image is None:
-    raise ValueError("Could not load the image, check the file path.")
+    # Calibrate using the current trackbar values
+    lower_hsv, upper_hsv = calibrate_sidewalk_hsv(hsv_roi, h_range, s_range, v_range)
 
-# Convert the image to the HSV color space
-hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+    # Create a mask for the calibrated HSV range and find contours in the ROI
+    mask_full = cv2.inRange(hsv, lower_hsv, upper_hsv)
+    contours_full, _ = cv2.findContours(mask_full, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-# Define the range of grey color in HSV
-lower_grey = np.array([0, 0, 50])
-upper_grey = np.array([180, 50, 220])
+    image_copy = original_image.copy()
+    if contours_full:
+        # Find the largest contour and its bounding rectangle
+        largest_contour_full = max(contours_full, key=cv2.contourArea)
+        cv2.drawContours(image_copy, [largest_contour_full], -1, (0, 255, 255), 3)
 
-# Create a mask for grey color
-mask_grey = cv2.inRange(hsv, lower_grey, upper_grey)
+        # Simplify the contour to a sequence of points
+        curve = np.vstack(largest_contour_full).squeeze()
+        curve = curve[curve[:, 0].argsort()]  # Sort points by x coordinate
 
-# Now you can find contours in the mask
-contours, _ = cv2.findContours(mask_grey, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        # Fit splines to the sorted points of the contour
+        spline_x = UnivariateSpline(curve[:, 0], curve[:, 1], k=3, s=0.5)
+        spline_y = UnivariateSpline(curve[:, 1], curve[:, 0], k=3, s=0.5)
 
-# Now, we will highlight the detected sidewalk in yellow on the original image.
-# Yellow in BGR code is (0, 255, 255).
+        # Draw points at regular intervals along the x-axis
+        num_points = 20
+        x_vals = np.linspace(curve[:, 0].min(), curve[:, 0].max(), num_points)
+        y_vals = spline_x(x_vals)
+        points = np.column_stack((x_vals, y_vals)).astype(int)
 
-# Create a copy of the original image to draw the highlights
-highlighted_image = image.copy()
+        # Draw the points on the image
+        for point in points:
+            cv2.circle(image_copy, tuple(point), 5, (255, 0, 0), -1)
 
-# Now you can find contours in the mask
-contours, _ = cv2.findContours(mask_grey, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    # Display the updated image
+    cv2.imshow('Sidewalk Detection', image_copy)
 
-# Sort contours based on contour area and get the largest contour
-# The largest contour should correspond to the largest continuous grey area (the sidewalk)
-largest_contour = max(contours, key=cv2.contourArea)
 
-# Create a copy of the original image to draw the highlights
-highlighted_image = image.copy()
+def calibrate_sidewalk_hsv(hsv_cropped, h_range, s_range, v_range):
+    # Assuming the peak of histograms represent the sidewalk
+    h_peak = np.argmax(cv2.calcHist([hsv_cropped], [0], None, [180], [0, 180]))
+    s_peak = np.argmax(cv2.calcHist([hsv_cropped], [1], None, [256], [0, 256]))
+    v_peak = np.argmax(cv2.calcHist([hsv_cropped], [2], None, [256], [0, 256]))
 
-# Draw the largest contour with yellow color on the original image
-cv2.drawContours(highlighted_image, [largest_contour], -1, (0, 255, 255), thickness=cv2.FILLED)
+    lower_hsv = np.array([max(h_peak - h_range, 0), max(s_peak - s_range, 0), max(v_peak - v_range, 0)])
+    upper_hsv = np.array([min(h_peak + h_range, 180), min(s_peak + s_range, 255), min(v_peak + v_range, 255)])
+    
+    return lower_hsv, upper_hsv
 
-# Blend the highlighted image with the original image
-alpha = 0.4  # Transparency factor.
-result_highlighted = cv2.addWeighted(highlighted_image, alpha, image, 1 - alpha, 0)
+# Load the image and define ROI
+image_path = '../data/sidewalk_3.jpg'
+original_image = cv2.imread(image_path)
+hsv = cv2.cvtColor(original_image, cv2.COLOR_BGR2HSV)
+roi_height = int(original_image.shape[0] * 0.3)  # Height of the ROI (e.g., 30% of the image height)
+roi_y_start = original_image.shape[0] - roi_height  # Y-coordinate where the ROI starts
+roi = (0, roi_y_start, original_image.shape[1], original_image.shape[0])  # (x_start, y_start, x_end, y_end)
+hsv_roi = hsv[roi[1]:roi[3], roi[0]:roi[2]]
 
-# Save the result
-output_path_highlighted = 'sidewalk_highlighted_yellow.png'
-cv2.imwrite(output_path_highlighted, result_highlighted)
+# Create a window with trackbars
+cv2.namedWindow('Sidewalk Detection', cv2.WINDOW_NORMAL)
+cv2.createTrackbar('H Range', 'Sidewalk Detection', 15, 180, update_image)
+cv2.createTrackbar('S Range', 'Sidewalk Detection', 56, 255, update_image)
+cv2.createTrackbar('V Range', 'Sidewalk Detection', 208, 255, update_image)
 
-# Display the result
-plt.imshow(cv2.cvtColor(result_highlighted, cv2.COLOR_BGR2RGB))
-plt.axis('off')
-plt.show()
+# Initialize the image
+update_image()
 
-# Return the path to the saved result
-output_path_highlighted
+# Wait for the user to press 'q' to exit
+while True:
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+
+# Cleanup
+cv2.destroyAllWindows()
