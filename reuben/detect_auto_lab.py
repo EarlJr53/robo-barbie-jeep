@@ -2,24 +2,41 @@ import cv2
 import numpy as np
 from scipy.signal import savgol_filter
 
+def calculate_initial_peaks(lab_cropped):
+    # Calculate the mean of each channel in the LAB color space
+    l_mean = int(np.mean(lab_cropped[:, :, 0]))
+    a_mean = int(np.mean(lab_cropped[:, :, 1]))
+    b_mean = int(np.mean(lab_cropped[:, :, 2]))
+    return l_mean, a_mean, b_mean
+
+
+def calculate_lab_ranges(lab_cropped, l_range, a_range, b_range):
+    l_peak, a_peak, b_peak = calculate_initial_peaks(lab_cropped)
+    lower_lab = np.array([max(l_peak - l_range, 0), max(a_peak - a_range, -127), max(b_peak - b_range, -127)])
+    upper_lab = np.array([min(l_peak + l_range, 100), min(a_peak + a_range, 127), min(b_peak + b_range, 127)])
+    return lower_lab, upper_lab
+
+window_length = 5
+polynomial_order = 2    
+
 def update_image(*args):
     # Retrieve the current positions of the trackbars
-    h_range = cv2.getTrackbarPos('H Range', 'Sidewalk Detection')
-    s_range = cv2.getTrackbarPos('S Range', 'Sidewalk Detection')
-    v_range = cv2.getTrackbarPos('V Range', 'Sidewalk Detection')
+    l_range = cv2.getTrackbarPos('L Range', 'Sidewalk Detection')
+    a_range = cv2.getTrackbarPos('a Range', 'Sidewalk Detection')
+    b_range = cv2.getTrackbarPos('b Range', 'Sidewalk Detection')
 
     # Calibrate using the current trackbar values
-    lower_hsv, upper_hsv , _ = calibrate_sidewalk_hsv(hsv_roi, h_range, s_range, v_range)
+    lower_lab, upper_lab = calibrate_sidewalk_lab(lab_roi, l_range, a_range, b_range)
 
-    # Create a mask for the calibrated HSV range and find contours in the ROI
-    mask_roi = cv2.inRange(hsv_roi, lower_hsv, upper_hsv)
+    # Create a mask for the calibrated LAB range and find contours in the ROI
+    mask_roi = cv2.inRange(lab_roi, lower_lab, upper_lab)
     contours_roi, _ = cv2.findContours(mask_roi, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     # Offset the contours by the ROI's starting y-coordinate
     offset_contours_roi = [contour + (0, roi_y_start) for contour in contours_roi]
 
     # Create a mask for the entire image
-    mask_full = cv2.inRange(hsv, lower_hsv, upper_hsv)
+    mask_full = cv2.inRange(lab, lower_lab, upper_lab)
     contours_full, _ = cv2.findContours(mask_full, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     # Draw the largest contour from the ROI on the original image
@@ -63,18 +80,20 @@ def update_image(*args):
 
         # Apply the Savitzky-Golay filter to the x and y coordinates of the points
         # Adjust window_length and polynomial_order as needed
-        window_length, polynomial_order = 5, 2
-        x_smooth = savgol_filter(center_points[:, 0], window_length, polynomial_order)
-        y_smooth = savgol_filter(center_points[:, 1], window_length, polynomial_order)
+        if len(center_points) >= window_length:
+            x_smooth = savgol_filter(center_points[:, 0], window_length, polynomial_order)
+            y_smooth = savgol_filter(center_points[:, 1], window_length, polynomial_order)
 
-        # Combine the smoothed x and y coordinates into a single array
-        center_points_smooth = np.column_stack((x_smooth, y_smooth))
+            # Combine the smoothed x and y coordinates into a single array
+            center_points_smooth = np.column_stack((x_smooth, y_smooth))
 
-        # Convert the smoothed center points to a numpy array
-        center_points_smooth = np.array(center_points_smooth, dtype=np.int32)
-
-        # Draw a polyline that connects the smoothed center points
-        cv2.polylines(image_copy, [center_points_smooth], False, (255, 0, 0), 2)
+            # Draw a polyline that connects the smoothed center points
+            cv2.polylines(image_copy, [center_points_smooth], False, (255, 0, 0), 2)
+        else:
+            # Handle the case where there are not enough points
+            # For example, you might just draw the unsmoothed points
+            if len(center_points) > 1:
+                cv2.polylines(image_copy, [center_points], False, (255, 0, 0), 2)
 
         # Calculate the x-coordinate of the center of the image
         image_center_x = image_copy.shape[1] // 2
@@ -109,61 +128,40 @@ def update_image(*args):
     #roi_image = cv2.cvtColor(mask_roi, cv2.COLOR_GRAY2BGR)  # Convert mask to BGR for display
     #cv2.imshow('ROI', roi_image)
 
-def calibrate_sidewalk_hsv(hsv_cropped, h_range, s_range, v_range):
+def calibrate_sidewalk_lab(lab_cropped, l_range, a_range, b_range):
     # Calculate the histograms
-    h_hist = cv2.calcHist([hsv_cropped], [0], None, [180], [0, 180])
-    s_hist = cv2.calcHist([hsv_cropped], [1], None, [256], [0, 256])
-    v_hist = cv2.calcHist([hsv_cropped], [2], None, [256], [0, 256])
+    l_hist = cv2.calcHist([lab_cropped], [0], None, [256], [0, 256]).flatten()
+    a_hist = cv2.calcHist([lab_cropped], [1], None, [256], [-127, 127]).flatten()
+    b_hist = cv2.calcHist([lab_cropped], [2], None, [256], [-127, 127]).flatten()
 
-    # Calculate the medians
-    h_median = np.argmax(np.cumsum(h_hist) >= np.sum(h_hist)/2)
-    s_median = np.argmax(np.cumsum(s_hist) >= np.sum(s_hist)/2)
-    v_median = np.argmax(np.cumsum(v_hist) >= np.sum(v_hist)/2)
+    # Calculate the mean of the histograms
+    l_mean = int(np.average(np.arange(256), weights=l_hist))
+    a_mean = int(np.average(np.arange(256) - 127, weights=a_hist))
+    b_mean = int(np.average(np.arange(256) - 127, weights=b_hist))
 
-    # Calculate the lower and upper HSV values
-    lower_hsv = np.array([max(h_median - h_range, 0), max(s_median - s_range, 0), max(v_median - v_range, 0)])
-    upper_hsv = np.array([min(h_median + h_range, 180), min(s_median + s_range, 255), min(v_median + v_range, 255)])
+    # Calculate the lower and upper LAB values
+    lower_lab = np.array([max(l_mean - l_range, 0), max(a_mean - a_range, -127), max(b_mean - b_range, -127)])
+    upper_lab = np.array([min(l_mean + l_range, 100), min(a_mean + a_range, 127), min(b_mean + b_range, 127)])
     
-    return lower_hsv, upper_hsv, (h_median, s_median, v_median)  # Return median HSV values
-
-'''
-def calibrate_sidewalk_hsv(hsv_cropped, h_range, s_range, v_range):
-    # Calculate the histograms
-    h_hist = cv2.calcHist([hsv_cropped], [0], None, [180], [0, 180])
-    s_hist = cv2.calcHist([hsv_cropped], [1], None, [256], [0, 256])
-    v_hist = cv2.calcHist([hsv_cropped], [2], None, [256], [0, 256])
-
-    # Calculate the means
-    h_mean = int(np.average(np.arange(180), weights=h_hist.flatten())) if np.sum(h_hist) > 0 else 0
-    s_mean = int(np.average(np.arange(256), weights=s_hist.flatten())) if np.sum(s_hist) > 0 else 0
-    v_mean = int(np.average(np.arange(256), weights=v_hist.flatten())) if np.sum(v_hist) > 0 else 0
-
-    # Calculate the lower and upper HSV values
-    lower_hsv = np.array([max(h_mean - h_range, 0), max(s_mean - s_range, 0), max(v_mean - v_range, 0)])
-    upper_hsv = np.array([min(h_mean + h_range, 180), min(s_mean + s_range, 255), min(v_mean + v_range, 255)])
-    
-    return lower_hsv, upper_hsv, (h_mean, s_mean, v_mean)  # Return mean HSV values
-'''
+    return lower_lab, upper_lab
 
 # Load the image and define ROI
 image_path = 'data/sidewalk_olin_2.jpeg'
 original_image = cv2.imread(image_path)
-hsv = cv2.cvtColor(original_image, cv2.COLOR_BGR2HSV)
+lab = cv2.cvtColor(original_image, cv2.COLOR_BGR2Lab)
 roi_height = int(original_image.shape[0] * 0.3)  # Height of the ROI (e.g., 30% of the image height)
 roi_y_start = original_image.shape[0] - roi_height  # Y-coordinate where the ROI starts
 roi = (0, roi_y_start, original_image.shape[1], original_image.shape[0])  # (x_start, y_start, x_end, y_end)
-hsv_roi = hsv[roi[1]:roi[3], roi[0]:roi[2]]
+lab_roi = lab[roi[1]:roi[3], roi[0]:roi[2]]
 
-# Calculate initial HSV calibration values
-default_range = 30  # Default range value for H, S, and V
-_, _, (h_peak, s_peak, v_peak) = calibrate_sidewalk_hsv(hsv_roi, default_range, default_range, default_range)
+# Calculate the initial peak values
+l_peak, a_peak, b_peak = calculate_initial_peaks(lab_roi)
 
 # Create a window with trackbars
 cv2.namedWindow('Sidewalk Detection', cv2.WINDOW_NORMAL)
-cv2.createTrackbar('H Range', 'Sidewalk Detection', h_peak, 180, update_image)
-cv2.createTrackbar('S Range', 'Sidewalk Detection', s_peak, 255, update_image)
-cv2.createTrackbar('V Range', 'Sidewalk Detection', v_peak, 255, update_image)
-
+cv2.createTrackbar('L Range', 'Sidewalk Detection', l_peak, 100, update_image)
+cv2.createTrackbar('a Range', 'Sidewalk Detection', a_peak, 255, update_image)
+cv2.createTrackbar('b Range', 'Sidewalk Detection', b_peak, 255, update_image)
 
 # Initialize the image
 update_image()
