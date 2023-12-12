@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 from scipy.interpolate import make_interp_spline
+from scipy.signal import savgol_filter
 
 def update_image(*args):
     # Retrieve the current positions of the trackbars
@@ -61,11 +62,14 @@ def update_image(*args):
         # Convert the list of center points to a numpy array
         center_points = np.array(center_points, dtype=np.int32)
 
-        # Fit a spline to the center points
-        t = np.linspace(0, 1, len(center_points))
-        spl = make_interp_spline(t, center_points, k=1)
-        t_smooth = np.linspace(0, 1, 500)
-        center_points_smooth = spl(t_smooth)
+        # Apply the Savitzky-Golay filter to the x and y coordinates of the points
+        # Adjust window_length and polynomial_order as needed
+        window_length, polynomial_order = 5, 2
+        x_smooth = savgol_filter(center_points[:, 0], window_length, polynomial_order)
+        y_smooth = savgol_filter(center_points[:, 1], window_length, polynomial_order)
+
+        # Combine the smoothed x and y coordinates into a single array
+        center_points_smooth = np.column_stack((x_smooth, y_smooth))
 
         # Convert the smoothed center points to a numpy array
         center_points_smooth = np.array(center_points_smooth, dtype=np.int32)
@@ -73,8 +77,34 @@ def update_image(*args):
         # Draw a polyline that connects the smoothed center points
         cv2.polylines(image_copy, [center_points_smooth], False, (255, 0, 0), 2)
 
-    # Display the updated image
-    cv2.imshow('Sidewalk Detection', image_copy)
+        # Calculate the x-coordinate of the center of the image
+        image_center_x = image_copy.shape[1] // 2
+
+        # Calculate the x-coordinate of the center point of the sidewalk in the middle section
+        sidewalk_center_x = center_points[len(center_points) // 2, 0]
+
+        # Define a tolerance range around the center of the image
+        tolerance = 100  # Adjust this value as needed
+
+        # Compare the two x-coordinates to determine whether to adjust to the left or right
+        if sidewalk_center_x < image_center_x - tolerance:
+            direction = "Adjust to the left"
+        elif sidewalk_center_x > image_center_x + tolerance:
+            direction = "Adjust to the right"
+        else:
+            direction = "Stay on course"
+
+        # Calculate the size of the text
+        text_size, _ = cv2.getTextSize(direction, cv2.FONT_HERSHEY_SIMPLEX, 2, 2)
+
+        # Draw a filled rectangle behind the text
+        cv2.rectangle(image_copy, (10, image_copy.shape[0] - 20 - text_size[1]), (10 + text_size[0], image_copy.shape[0] - 20), (255, 255, 255), -1)
+
+        # Display the direction in the image
+        cv2.putText(image_copy, direction, (10, image_copy.shape[0] - 20), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 2)
+
+        # Display the updated image
+        cv2.imshow('Sidewalk Detection', image_copy)
 
     # Also display the ROI for reference
     #roi_image = cv2.cvtColor(mask_roi, cv2.COLOR_GRAY2BGR)  # Convert mask to BGR for display
@@ -109,9 +139,9 @@ cv2.createTrackbar('V Range', 'Sidewalk Detection', 208, 255, update_image)
 # Initialize the image
 update_image()
 
-# Wait for the user to press 'q' to exit
+# Wait for the user to press 'q' to exit or the window to be closed
 while True:
-    if cv2.waitKey(1) & 0xFF == ord('q'):
+    if cv2.waitKey(1) & 0xFF == ord('q') or cv2.getWindowProperty('Sidewalk Detection', cv2.WND_PROP_VISIBLE) < 1:
         break
 
 # Cleanup
