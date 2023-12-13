@@ -9,6 +9,10 @@ banner:
     label: "Project Details"
     link: "writeup/"
 
+# You should create a project website. The project website will serve two purposes: to explain how your system works and to document the story of how you arrived at your final product. You should create these deliverables for multiple audiences: general readers interested in your project, potential employers, other students in the course, and the CompRobo teaching staff (course assistants and faculty).
+
+# Show it off: Describe the main idea of your project. What does your system do? Why would you want to do this? What are the major components to your system and how do they fit together? Hopefully you will have some cool videos to put in the website by this point.
+
 # Features (simplified to a single section for the project introduction)
 features:
   - title: "Our Method"

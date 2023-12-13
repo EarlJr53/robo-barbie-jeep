@@ -2,16 +2,26 @@
 
 # main menu
 [[main]]
-name = "Home"
+name = "Overview"
 url = "/"
 weight = 1
 
 [[main]]
-name = "Write Up"
-url = "writeup/"
+name = "System Architecture"
+url = "code/"
 weight = 2
 
 [[main]]
-name = "Code"
-url = "https://github.com/r-s-lewis/qea3_final"
+name = "Milestones"
+url = "milestones/"
 weight = 3
+
+[[main]]
+name = "Ethics Statement"
+url = "ethics/"
+weight = 4
+
+[[main]]
+name = "Codebase"
+url = "https://github.com/EarlJr53/robo-barbie-jeep"
+weight = 5
