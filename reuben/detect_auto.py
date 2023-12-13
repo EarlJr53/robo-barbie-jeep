@@ -64,6 +64,12 @@ def update_image(*args):
         # Apply the Savitzky-Golay filter to the x and y coordinates of the points
         # Adjust window_length and polynomial_order as needed
         window_length, polynomial_order = 5, 2
+        window_length = min(window_length, len(center_points[:, 0]))
+
+        # Ensure polynomial_order is less than window_length
+        if polynomial_order >= window_length:
+            polynomial_order = window_length - 1
+
         x_smooth = savgol_filter(center_points[:, 0], window_length, polynomial_order)
         y_smooth = savgol_filter(center_points[:, 1], window_length, polynomial_order)
 
@@ -145,33 +151,64 @@ def calibrate_sidewalk_hsv(hsv_cropped, h_range, s_range, v_range):
     return lower_hsv, upper_hsv, (h_mean, s_mean, v_mean)  # Return mean HSV values
 '''
 
-# Load the image and define ROI
-image_path = 'data/sidewalk_olin_2.jpeg'
-original_image = cv2.imread(image_path)
-hsv = cv2.cvtColor(original_image, cv2.COLOR_BGR2HSV)
-roi_height = int(original_image.shape[0] * 0.3)  # Height of the ROI (e.g., 30% of the image height)
-roi_y_start = original_image.shape[0] - roi_height  # Y-coordinate where the ROI starts
-roi = (0, roi_y_start, original_image.shape[1], original_image.shape[0])  # (x_start, y_start, x_end, y_end)
-hsv_roi = hsv[roi[1]:roi[3], roi[0]:roi[2]]
-
-# Calculate initial HSV calibration values
-default_range = 30  # Default range value for H, S, and V
-_, _, (h_peak, s_peak, v_peak) = calibrate_sidewalk_hsv(hsv_roi, default_range, default_range, default_range)
+# Load the video and define ROI
+video_path = 'data/walk-trimmed.mp4'
+cap = cv2.VideoCapture(video_path)
+#cap.set(cv2.CAP_PROP_POS_FRAMES, 2000)
 
 # Create a window with trackbars
 cv2.namedWindow('Sidewalk Detection', cv2.WINDOW_NORMAL)
-cv2.createTrackbar('H Range', 'Sidewalk Detection', h_peak, 180, update_image)
-cv2.createTrackbar('S Range', 'Sidewalk Detection', s_peak, 255, update_image)
-cv2.createTrackbar('V Range', 'Sidewalk Detection', v_peak, 255, update_image)
-
 
 # Initialize the image
-update_image()
+ret, original_image = cap.read()
+if ret:
+    hsv = cv2.cvtColor(original_image, cv2.COLOR_BGR2HSV)
+    roi_height = int(original_image.shape[0] * 0.3)  # Height of the ROI (e.g., 30% of the image height)
+    roi_y_start = original_image.shape[0] - roi_height  # Y-coordinate where the ROI starts
+    roi = (0, roi_y_start, original_image.shape[1], original_image.shape[0])  # (x_start, y_start, x_end, y_end)
+    hsv_roi = hsv[roi[1]:roi[3], roi[0]:roi[2]]
 
-# Wait for the user to press 'q' to exit or the window to be closed
+    # Calculate initial HSV calibration values
+    default_range = 30  # Default range value for H, S, and V
+    _, _, (h_peak, s_peak, v_peak) = calibrate_sidewalk_hsv(hsv_roi, default_range, default_range, default_range)
+
+    cv2.createTrackbar('H Range', 'Sidewalk Detection', h_peak, 180, update_image)
+    cv2.createTrackbar('S Range', 'Sidewalk Detection', s_peak, 255, update_image)
+    cv2.createTrackbar('V Range', 'Sidewalk Detection', v_peak, 255, update_image)
+
+    update_image()
+
 while True:
-    if cv2.waitKey(1) & 0xFF == ord('q') or cv2.getWindowProperty('Sidewalk Detection', cv2.WND_PROP_VISIBLE) < 1:
+    ret, original_image = cap.read()
+    if ret:
+        # Update the image
+        hsv = cv2.cvtColor(original_image, cv2.COLOR_BGR2HSV)
+
+        # Calculate the start and end points of the ROI
+        height, width = hsv.shape[:2]
+        x_start = int(width * 0.25)
+        x_end = int(width * 0.75)
+        y_start = int(height * 0.25)
+        y_end = int(height * 0.75)
+
+        # Update the ROI to only take up the center 50% of the image in both x and y directions
+        hsv_roi = hsv[y_start:y_end, x_start:x_end]
+
+        # Calculate new HSV calibration values
+        _, _, (h_peak, s_peak, v_peak) = calibrate_sidewalk_hsv(hsv_roi, default_range, default_range, default_range)
+
+        # Update the trackbar values
+        cv2.setTrackbarPos('H Range', 'Sidewalk Detection', h_peak)
+        cv2.setTrackbarPos('S Range', 'Sidewalk Detection', s_peak)
+        cv2.setTrackbarPos('V Range', 'Sidewalk Detection', v_peak)
+
+        update_image()
+    else:
+        # If no frame is returned, then we've reached the end of the video
         break
 
+    if cv2.waitKey(1) & 0xFF == ord('q') or cv2.getWindowProperty('Sidewalk Detection', cv2.WND_PROP_VISIBLE) < 1:
+        break
 # Cleanup
+cap.release()
 cv2.destroyAllWindows()
