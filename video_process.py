@@ -189,14 +189,14 @@ while(original_video.isOpened()):
 
     # Calculate initial HSV calibration values
     default_range = 30  # Default range value for H, S, and V
-    _, _, (h_peak, s_peak, v_peak) = calibrate_sidewalk_hsv(hsv_roi, default_range, default_range, default_range)
+    # _, _, (h_peak, s_peak, v_peak) = calibrate_sidewalk_hsv(hsv_roi, default_range, default_range, default_range)
 
     if start:
         # Create a window with trackbars
         cv2.namedWindow('Sidewalk Detection', cv2.WINDOW_NORMAL)
-        cv2.createTrackbar('H Range', 'Sidewalk Detection', h_peak, 180, update_image)
-        cv2.createTrackbar('S Range', 'Sidewalk Detection', s_peak, 255, update_image)
-        cv2.createTrackbar('V Range', 'Sidewalk Detection', v_peak, 255, update_image)
+        cv2.createTrackbar('H Range', 'Sidewalk Detection', 20, 180, update_image)
+        cv2.createTrackbar('S Range', 'Sidewalk Detection', 30, 255, update_image)
+        cv2.createTrackbar('V Range', 'Sidewalk Detection', 35, 255, update_image)
         start=False
 
 
