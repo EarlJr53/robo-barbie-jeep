@@ -1,5 +1,5 @@
 ---
-title: "CompRobo Final Project: Project Milestones"
+title: "Project Milestones"
 meta_title: "Project Milestones"
 description: "Descriptions of project progress at defined milestones."
 image: "/images/project-image.png" # add something useful here

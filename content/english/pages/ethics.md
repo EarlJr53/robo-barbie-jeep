@@ -1,9 +1,9 @@
 ---
-title: "Ethics Statement"
+title: "Ethics & Responsible Use Statement"
 # meta title
-meta_title: "Ethics & Responsible Use Statement"
+meta_title: "Ethics Statement"
 # meta description
-description: "This is meta description"
+description: "A statement of the ethics and responsible use facets of this project."
 # save as draft
 draft: false
 ---
