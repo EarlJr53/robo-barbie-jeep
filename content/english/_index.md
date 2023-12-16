@@ -3,7 +3,7 @@
 banner:
   title: "Sidewalk Detection (\"Robo Barbie Jeep\")"
   content: "Reuben Lewis, Brooke Moss, Swasti Jain"
-  image: "/images/wavform_banner.png"
+  image: "/images/demo.png"
   button:
     enable: true
     label: "Project Architecture"
