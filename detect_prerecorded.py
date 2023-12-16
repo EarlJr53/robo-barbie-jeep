@@ -40,7 +40,7 @@ def update_image(*args):
         center_points = []
 
         # Divide the image into sections along the vertical axis
-        num_sections = 10
+        num_sections = 5
         section_height = image_copy.shape[0] // num_sections
 
         for i in range(num_sections):
@@ -64,9 +64,12 @@ def update_image(*args):
         # Apply the Savitzky-Golay filter to the x and y coordinates of the points
         # Adjust window_length and polynomial_order as needed
         window_length, polynomial_order = 5, 2
+        window_length = min(window_length, len(center_points[:, 0]))
 
-        print(center_points[:, 0])
-        print(window_length)
+        # Ensure polynomial_order is less than window_length
+        if polynomial_order >= window_length:
+            polynomial_order = window_length - 1
+
         x_smooth = savgol_filter(center_points[:, 0], window_length, polynomial_order)
         y_smooth = savgol_filter(center_points[:, 1], window_length, polynomial_order)
 
@@ -99,19 +102,14 @@ def update_image(*args):
         # Calculate the size of the text
         text_size, _ = cv2.getTextSize(direction, cv2.FONT_HERSHEY_SIMPLEX, 2, 2)
 
-        # # Draw a filled rectangle behind the text
+        # Draw a filled rectangle behind the text
         cv2.rectangle(image_copy, (10, image_copy.shape[0] - 20 - text_size[1]), (10 + text_size[0], image_copy.shape[0] - 20), (255, 255, 255), -1)
 
-        # # Display the direction in the image
+        # Display the direction in the image
         cv2.putText(image_copy, direction, (10, image_copy.shape[0] - 20), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 2)
 
         # Display the updated image
         cv2.imshow('Sidewalk Detection', image_copy)
-        return image_copy
-
-    # Also display the ROI for reference
-    #roi_image = cv2.cvtColor(mask_roi, cv2.COLOR_GRAY2BGR)  # Convert mask to BGR for display
-    #cv2.imshow('ROI', roi_image)
 
 def calibrate_sidewalk_hsv(hsv_cropped, h_range, s_range, v_range):
     # Calculate the histograms
@@ -130,57 +128,17 @@ def calibrate_sidewalk_hsv(hsv_cropped, h_range, s_range, v_range):
     
     return lower_hsv, upper_hsv, (h_median, s_median, v_median)  # Return median HSV values
 
-'''
-def calibrate_sidewalk_hsv(hsv_cropped, h_range, s_range, v_range):
-    # Calculate the histograms
-    h_hist = cv2.calcHist([hsv_cropped], [0], None, [180], [0, 180])
-    s_hist = cv2.calcHist([hsv_cropped], [1], None, [256], [0, 256])
-    v_hist = cv2.calcHist([hsv_cropped], [2], None, [256], [0, 256])
-
-    # Calculate the means
-    h_mean = int(np.average(np.arange(180), weights=h_hist.flatten())) if np.sum(h_hist) > 0 else 0
-    s_mean = int(np.average(np.arange(256), weights=s_hist.flatten())) if np.sum(s_hist) > 0 else 0
-    v_mean = int(np.average(np.arange(256), weights=v_hist.flatten())) if np.sum(v_hist) > 0 else 0
-
-    # Calculate the lower and upper HSV values
-    lower_hsv = np.array([max(h_mean - h_range, 0), max(s_mean - s_range, 0), max(v_mean - v_range, 0)])
-    upper_hsv = np.array([min(h_mean + h_range, 180), min(s_mean + s_range, 255), min(v_mean + v_range, 255)])
-    
-    return lower_hsv, upper_hsv, (h_mean, s_mean, v_mean)  # Return mean HSV values
-'''
-
-start = True
-
-# Load the image and define ROI
+# Load the video and define ROI
 video_path = 'data/walk-trimmed.mp4'
-# original_image = cv2.imread(image_path)
-original_video = cv2.VideoCapture(video_path)
+cap = cv2.VideoCapture(video_path)
+#cap.set(cv2.CAP_PROP_POS_FRAMES, 2000)
 
+# Create a window with trackbars
+cv2.namedWindow('Sidewalk Detection', cv2.WINDOW_NORMAL)
 
-if (original_video.isOpened() == False):  
-    print("Error reading video file") 
-  
-# We need to set resolutions. 
-# so, convert them from float to integer. 
-frame_width = int(original_video.get(3)) 
-frame_height = int(original_video.get(4)) 
-   
-size = (frame_width, frame_height) 
-   
-# Below VideoWriter object will create 
-# a frame of above defined The output  
-# is stored in 'filename.avi' file. 
-result = cv2.VideoWriter('data/result.avi',  
-                         cv2.VideoWriter_fourcc(*'MJPG'), 
-                         10, size) 
-
-
-while(original_video.isOpened()):
-  # vCapture.read() methods returns a tuple, first element is a bool 
-  # and the second is frame
- 
-  ret, original_image = original_video.read()
-  if ret == True:
+# Initialize the image
+ret, original_image = cap.read()
+if ret:
     hsv = cv2.cvtColor(original_image, cv2.COLOR_BGR2HSV)
     roi_height = int(original_image.shape[0] * 0.3)  # Height of the ROI (e.g., 30% of the image height)
     roi_y_start = original_image.shape[0] - roi_height  # Y-coordinate where the ROI starts
@@ -189,33 +147,45 @@ while(original_video.isOpened()):
 
     # Calculate initial HSV calibration values
     default_range = 30  # Default range value for H, S, and V
-    # _, _, (h_peak, s_peak, v_peak) = calibrate_sidewalk_hsv(hsv_roi, default_range, default_range, default_range)
+    _, _, (h_peak, s_peak, v_peak) = calibrate_sidewalk_hsv(hsv_roi, default_range, default_range, default_range)
 
-    if start:
-        # Create a window with trackbars
-        cv2.namedWindow('Sidewalk Detection', cv2.WINDOW_NORMAL)
-        cv2.createTrackbar('H Range', 'Sidewalk Detection', 20, 180, update_image)
-        cv2.createTrackbar('S Range', 'Sidewalk Detection', 30, 255, update_image)
-        cv2.createTrackbar('V Range', 'Sidewalk Detection', 35, 255, update_image)
-        start=False
+    cv2.createTrackbar('H Range', 'Sidewalk Detection', h_peak, 180, update_image)
+    cv2.createTrackbar('S Range', 'Sidewalk Detection', s_peak, 255, update_image)
+    cv2.createTrackbar('V Range', 'Sidewalk Detection', v_peak, 255, update_image)
 
+    update_image()
 
-    # Initialize the image
-    result.write(update_image())
-    k = cv2.waitKey(20)
-    # 113 is ASCII code for q key
-    if k == 113:
-      break
-  else:
-    break
-  
-original_video.release() 
-result.release() 
+while True:
+    ret, original_image = cap.read()
+    if ret:
+        # Update the image
+        hsv = cv2.cvtColor(original_image, cv2.COLOR_BGR2HSV)
 
-# Wait for the user to press 'q' to exit or the window to be closed
-# while True:
-#     if cv2.waitKey(1) & 0xFF == ord('q') or cv2.getWindowProperty('Sidewalk Detection', cv2.WND_PROP_VISIBLE) < 1:
-#         break
+        # Calculate the start and end points of the ROI
+        height, width = hsv.shape[:2]
+        x_start = int(width * 0.25)
+        x_end = int(width * 0.75)
+        y_start = int(height * 0.25)
+        y_end = int(height * 0.75)
 
+        # Update the ROI to only take up the center 50% of the image in both x and y directions
+        hsv_roi = hsv[y_start:y_end, x_start:x_end]
+
+        # Calculate new HSV calibration values
+        _, _, (h_peak, s_peak, v_peak) = calibrate_sidewalk_hsv(hsv_roi, default_range, default_range, default_range)
+
+        # Update the trackbar values
+        cv2.setTrackbarPos('H Range', 'Sidewalk Detection', h_peak)
+        cv2.setTrackbarPos('S Range', 'Sidewalk Detection', s_peak)
+        cv2.setTrackbarPos('V Range', 'Sidewalk Detection', v_peak)
+
+        update_image()
+    else:
+        # If no frame is returned, then we've reached the end of the video
+        break
+
+    if cv2.waitKey(1) & 0xFF == ord('q') or cv2.getWindowProperty('Sidewalk Detection', cv2.WND_PROP_VISIBLE) < 1:
+        break
 # Cleanup
+cap.release()
 cv2.destroyAllWindows()
