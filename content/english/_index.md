@@ -1,13 +1,13 @@
 ---
 # Banner
 banner:
-  title: "CompRobo Final Project"
-  content: "Reuben, Brooke, and Swasti"
+  title: "Sidewalk Detection (\"Robo Barbie Jeep\")"
+  content: "Reuben Lewis, Brooke Moss, Swasti Jain"
   image: "/images/wavform_banner.png"
   button:
     enable: true
-    label: "Project Details"
-    link: "writeup/"
+    label: "Project Architecture"
+    link: "architecture/"
 
 # You should create a project website. The project website will serve two purposes: to explain how your system works and to document the story of how you arrived at your final product. You should create these deliverables for multiple audiences: general readers interested in your project, potential employers, other students in the course, and the CompRobo teaching staff (course assistants and faculty).
 
